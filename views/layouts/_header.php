@@ -39,7 +39,7 @@ $navItems = [
                 'visible' => !Yii::$app->user->isGuest && $user?->isKasir(),
             ],
             [
-                'label' => 'Riwayat Penjualan',
+                'label' => 'Rincian Penjualan',
                 'url' => ['/transaksi/index'],
                 'visible' => !Yii::$app->user->isGuest && ($user?->isSuperAdmin() || $user?->isManager() || $user?->isKasir()),
             ],
@@ -52,12 +52,14 @@ $navItems = [
             [
                 'label' => 'Kategori Barang', 
                 'url' => ['/group/index'],
-                'visible' => !Yii::$app->user->isGuest && $user?->isSuperAdmin(),
+                // Diizinkan untuk SuperAdmin & Kasir
+                'visible' => !Yii::$app->user->isGuest && ($user?->isSuperAdmin() || $user?->isKasir()),
             ],
             [
                 'label' => 'Data Barang', 
                 'url' => ['/barang/index'],
-                'visible' => !Yii::$app->user->isGuest && $user?->isSuperAdmin(),
+                // Diizinkan untuk SuperAdmin & Kasir
+                'visible' => !Yii::$app->user->isGuest && ($user?->isSuperAdmin() || $user?->isKasir()),
             ],
             [
                 'label' => 'Stok Barang Outlet', 

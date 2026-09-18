@@ -259,4 +259,4 @@ $this->title = $isKasir ? 'Kasir POS - EverydayMart' : 'Welcome - EverydayMart';
 JS;
     $this->registerJs($script);
     ?>
-<?php endif; ?>
+<?php endif; ?>k

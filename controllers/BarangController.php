@@ -8,7 +8,9 @@ use app\models\BarangSearch;
 use yii\web\Controller;
 use yii\web\NotFoundHttpException;
 use yii\filters\VerbFilter;
+use yii\filters\AccessControl;
 use yii\web\UploadedFile;
+use yii\db\IntegrityException;
 
 /**
  * BarangController implements the CRUD actions for Barang model.
@@ -16,13 +18,37 @@ use yii\web\UploadedFile;
 class BarangController extends Controller
 {
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function behaviors()
     {
         return array_merge(
             parent::behaviors(),
             [
+                'access' => [
+                    'class' => AccessControl::class,
+                    'rules' => [
+                        [
+                            // Kasir dan Admin bisa melihat daftar & detail barang
+                            'actions' => ['index', 'view'],
+                            'allow' => true,
+                            'roles' => ['@'], // User yang sudah login
+                        ],
+                        [
+                            // Hanya Admin yang bisa Create, Update, dan Delete
+                            'actions' => ['create', 'update', 'delete'],
+                            'allow' => true,
+                            'matchCallback' => function ($rule, $action) {
+                                $user = Yii::$app->user->identity;
+                                // Menyesuaikan dengan field role/level di database kamu
+                                return $user && (
+                                    (isset($user->role) && strtolower($user->role) === 'admin') ||
+                                    (isset($user->level) && strtolower($user->level) === 'admin')
+                                );
+                            }
+                        ],
+                    ],
+                ],
                 'verbs' => [
                     'class' => VerbFilter::className(),
                     'actions' => [
@@ -92,9 +118,18 @@ class BarangController extends Controller
 
                 if ($model->save()) {
                     if (class_exists('\app\models\StokBarang')) {
+                        // Tentukan ID Outlet (jika user tidak memiliki outlet, default ke 1)
+                        $user = Yii::$app->user->identity;
+                        $idOutlet = $user?->id_outlet ?? 1;
+
                         $stokBarang = new \app\models\StokBarang();
                         if ($stokBarang->hasAttribute('id_barang') && $stokBarang->hasAttribute('jumlah_stok')) {
                             $stokBarang->id_barang = $model->id;
+                            
+                            if ($stokBarang->hasAttribute('id_outlet')) {
+                                $stokBarang->id_outlet = $idOutlet;
+                            }
+
                             $stokBarang->jumlah_stok = 0;
                             $stokBarang->save(false);
                         }
@@ -170,15 +205,47 @@ class BarangController extends Controller
     {
         $model = $this->findModel($id);
         
-        // Hapus file fisik gambar jika barang dihapus
-        if ($model->foto) {
-            $filePath = Yii::getAlias('@webroot/uploads/') . $model->foto;
-            if (file_exists($filePath)) {
-                @unlink($filePath);
-            }
+        // 1. Cek apakah barang ini ada di riwayat transaksi
+        $sudahDibeli = false;
+
+        if (class_exists('\app\models\DetailTransaksi')) {
+            $sudahDibeli = \app\models\DetailTransaksi::find()->where(['id_barang' => $id])->exists();
+        } elseif (class_exists('\app\models\TransaksiDetail')) {
+            $sudahDibeli = \app\models\TransaksiDetail::find()->where(['id_barang' => $id])->exists();
+        } elseif (class_exists('\app\models\PenjualanDetail')) {
+            $sudahDibeli = \app\models\PenjualanDetail::find()->where(['id_barang' => $id])->exists();
+        } elseif (class_exists('\app\models\DetailPenjualan')) {
+            $sudahDibeli = \app\models\DetailPenjualan::find()->where(['id_barang' => $id])->exists();
         }
 
-        $model->delete();
+        // 2. Jika barang pernah dibeli, tolak penghapusan
+        if ($sudahDibeli) {
+            Yii::$app->session->setFlash('error', 'Barang tidak bisa dihapus karena sudah memiliki riwayat transaksi/penjualan!');
+            return $this->redirect(['index']);
+        }
+
+        // 3. Jika belum pernah dibeli, jalankan proses hapus
+        try {
+            if ($model->delete()) {
+                // Hapus stok barang terkait
+                if (class_exists('\app\models\StokBarang')) {
+                    \app\models\StokBarang::deleteAll(['id_barang' => $id]);
+                }
+
+                // Hapus foto fisik dari folder uploads
+                if ($model->foto) {
+                    $filePath = Yii::getAlias('@webroot/uploads/') . $model->foto;
+                    if (file_exists($filePath)) {
+                        @unlink($filePath);
+                    }
+                }
+                Yii::$app->session->setFlash('success', 'Barang berhasil dihapus.');
+            }
+        } catch (IntegrityException $e) {
+            Yii::$app->session->setFlash('error', 'Barang tidak bisa dihapus karena masih terikat dengan data lain!');
+        } catch (\Exception $e) {
+            Yii::$app->session->setFlash('error', 'Gagal menghapus barang: ' . $e->getMessage());
+        }
 
         return $this->redirect(['index']);
     }

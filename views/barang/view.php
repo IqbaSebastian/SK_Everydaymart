@@ -1,6 +1,7 @@
 <?php
 
 use yii\helpers\Html;
+use yii\helpers\Url;
 use yii\widgets\DetailView;
 
 /** @var yii\web\View $this */
@@ -29,6 +30,26 @@ $this->params['breadcrumbs'][] = $this->title;
     <?= DetailView::widget([
         'model' => $model,
         'attributes' => [
+            // BARIS GAMBAR BARANG
+            [
+                'attribute' => 'foto', // Menyesuaikan nama kolom DB: foto/gambar/image
+                'label' => 'Gambar Produk',
+                'format' => 'raw',
+                'value' => function($model) {
+                    // Ambil nama file gambar dari atribut yang tersedia
+                    $foto = $model->foto ?? $model->gambar ?? $model->image ?? null;
+
+                    if (!empty($foto) && file_exists(Yii::getAlias('@webroot/uploads/' . $foto))) {
+                        return Html::img(Url::to('@web/uploads/' . $foto), [
+                            'class' => 'img-thumbnail rounded shadow-sm',
+                            'style' => 'max-width: 200px; max-height: 200px; object-fit: cover;',
+                            'alt' => Html::encode($model->nama),
+                        ]);
+                    }
+
+                    return '<span class="badge bg-secondary">Tidak ada gambar</span>';
+                }
+            ],
             [
                 'attribute' => 'id',
                 'label' => 'ID Barang',

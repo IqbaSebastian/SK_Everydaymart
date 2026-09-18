@@ -2,11 +2,14 @@
 
 namespace app\controllers;
 
+use Yii;
 use app\models\Group;
 use app\models\GroupSearch;
+use app\models\Barang;
 use yii\web\Controller;
 use yii\web\NotFoundHttpException;
 use yii\filters\VerbFilter;
+use yii\filters\AccessControl;
 
 /**
  * GroupController implements the CRUD actions for Group model.
@@ -21,6 +24,29 @@ class GroupController extends Controller
         return array_merge(
             parent::behaviors(),
             [
+                'access' => [
+                    'class' => AccessControl::class,
+                    'rules' => [
+                        [
+                            // Kasir dan Admin bisa melihat daftar & detail kategori/group
+                            'actions' => ['index', 'view'],
+                            'allow' => true,
+                            'roles' => ['@'], // User yang sudah login
+                        ],
+                        [
+                            // Hanya Admin yang bisa Create, Update, dan Delete
+                            'actions' => ['create', 'update', 'delete'],
+                            'allow' => true,
+                            'matchCallback' => function ($rule, $action) {
+                                $user = Yii::$app->user->identity;
+                                return $user && (
+                                    (isset($user->role) && strtolower($user->role) === 'admin') ||
+                                    (isset($user->level) && strtolower($user->level) === 'admin')
+                                );
+                            }
+                        ],
+                    ],
+                ],
                 'verbs' => [
                     'class' => VerbFilter::className(),
                     'actions' => [
@@ -111,7 +137,18 @@ class GroupController extends Controller
      */
     public function actionDelete($id)
     {
+        // 1. Cek apakah ada barang yang masih menggunakan ID Group/Kategori ini
+        $jumlahBarang = Barang::find()->where(['id_group' => $id])->count();
+
+        if ($jumlahBarang > 0) {
+            // Jika masih ada barang terkait, batalkan hapus dan munculkan notifikasi error
+            Yii::$app->session->setFlash('error', "Gagal menghapus! Group/Kategori ini masih digunakan oleh {$jumlahBarang} produk.");
+            return $this->redirect(['index']);
+        }
+
+        // 2. Jika aman (tidak dipakai barang), lakukan proses hapus
         $this->findModel($id)->delete();
+        Yii::$app->session->setFlash('success', 'Group/Kategori berhasil dihapus.');
 
         return $this->redirect(['index']);
     }

@@ -10,7 +10,7 @@ use yii\grid\GridView;
 /** @var app\models\TransaksiSearch $searchModel */
 /** @var yii\data\ActiveDataProvider $dataProvider */
 
-$this->title = 'Riwayat Penjualan';
+$this->title = 'Rincian Penjualan';
 $this->params['breadcrumbs'][] = $this->title;
 
 $user = Yii::$app->user->identity;

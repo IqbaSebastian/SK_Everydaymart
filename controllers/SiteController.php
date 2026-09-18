@@ -22,10 +22,46 @@ use yii\web\Response;
 class SiteController extends Controller
 {
     /**
+     * Helper Method: Mengecek apakah user yang sedang login adalah Admin
+     */
+    private function isAdmin(): bool
+    {
+        if (Yii::$app->user->isGuest) {
+            return false;
+        }
+
+        $user = Yii::$app->user->identity;
+        $username = strtolower((string)($user->username ?? ''));
+        $role = strtolower((string)($user->role ?? $user->level ?? $user->id_role ?? ''));
+
+        // Daftar nilai yang dianggap Admin (diubah ke lowercase semua agar cocok)
+        $adminRoles = ['admin', 'administrator', 'super administrator', 'superadmin', '1'];
+
+        return $username === 'admin' || in_array($role, $adminRoles, true);
+    }
+
+    /**
+     * Helper Method: Mengarahkan halaman berdasarkan Role akun
+     */
+    private function redirectByRole(): Response
+    {
+        if ($this->isAdmin()) {
+            return $this->redirect(['transaksi/laporan']);
+        }
+
+        return $this->redirect(['site/index']);
+    }
+
+    /**
      * Halaman Utama / Katalog Produk per Outlet
      */
     public function actionIndex($id_outlet = null)
     {
+        // Jika yang membuka halaman utama adalah Admin, langsung lempar ke Laporan Omset
+        if ($this->isAdmin()) {
+            return $this->redirect(['transaksi/laporan']);
+        }
+
         $outlets = Outlet::find()->all();
         
         // Tentukan outlet yang dipilih (default ke outlet pertama jika tidak ada)
@@ -142,14 +178,16 @@ class SiteController extends Controller
      */
     public function actionLogin()
     {
+        // Jika sudah login, langsung arahkan sesuai Role
         if (!Yii::$app->user->isGuest) {
-            return $this->goHome();
+            return $this->redirectByRole();
         }
 
         $model = new LoginForm();
 
+        // Jika submit login berhasil, arahkan sesuai Role
         if ($model->load(Yii::$app->request->post()) && $model->login()) {
-            return $this->goBack();
+            return $this->redirectByRole();
         }
 
         $model->password = '';
