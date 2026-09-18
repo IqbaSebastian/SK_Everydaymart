@@ -1,5 +1,7 @@
-[providers]
 providers = ['php']
 
 [php]
-extensions = ['pdo', 'pdo_mysql', 'mysqli']
+version = '8.2'
+
+[variables]
+NIXPACKS_PHP_EXTENSIONS = 'pdo, pdo_mysql, mysqli, gd, mbstring'
